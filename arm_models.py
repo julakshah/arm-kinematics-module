@@ -609,6 +609,7 @@ class FiveDOFRobot:
             ],
             axis=0,
         )
+        self.J = np.zeros([5, 3])
 
         ########################################
 
@@ -681,17 +682,33 @@ class FiveDOFRobot:
         for i in range(self.num_dof):
             T_cumulative.append(T_cumulative[-1] @ self.T[i])
 
-        # Parse T_cumulative to define
-        k_hat = np.array([0, 0, 1])  # z rotation unit vector
-        cumulative_rotation = [array[0:3, 0:3] for array in T_cumulative[1::]]
-        z_i = [array @ k_hat for array in cumulative_rotation]
-        r_i = [array[0:3, 3] for array in T_cumulative[1::]]
-        inv_j_i = np.linalg.pinv(np.cross(z_i, r_i).T)
+        d = T_cumulative[-1] @ np.vstack([0, 0, 0, 1])
+        # print(d)
 
-        # RRMC with angular velocities
-        time_constant = 0.05
-        angular_velocities = inv_j_i @ np.asarray(vel)
-        self.theta = [omega * time_constant for omega in angular_velocities]
+        for i in range(0, 5):
+            T_i = T_cumulative[i]
+            z = T_i @ np.vstack([0, 0, 1, 0])
+            d1 = T_i @ np.vstack([0, 0, 0, 1])
+            r = np.array([d[0] - d1[0], d[1] - d1[1], d[2] - d1[2]]).flatten()
+            self.J[i] = np.cross(z[:3].flatten(), r.flatten())
+
+        J_inv = np.linalg.pinv(self.J)
+        theta_dot = np.dot(np.array(vel), J_inv)
+
+        dt = 0.01
+        self.theta = self.theta + (theta_dot * dt)
+
+        # # Parse T_cumulative to define
+        # k_hat = np.array([0, 0, 1])  # z rotation unit vector
+        # cumulative_rotation = [array[0:3, 0:3] for array in T_cumulative[1::]]
+        # z_i = [array @ k_hat for array in cumulative_rotation]
+        # r_i = [array[0:3, 3] for array in T_cumulative[1::]]
+        # inv_j_i = np.linalg.pinv(np.cross(z_i, r_i).T)
+
+        # # RRMC with angular velocities
+        # time_constant = 0.05
+        # angular_velocities = inv_j_i @ np.asarray(vel)
+        # self.theta = [omega * time_constant for omega in angular_velocities]
 
         ########################################
 
